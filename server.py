@@ -25,9 +25,7 @@ def is_logged_in():
     return "user_id" in session
 
 
-# -------------------------------------------------------------------
-# Auth Routes
-# -------------------------------------------------------------------
+
 @app.route("/")
 def base():
     if is_logged_in():
@@ -85,9 +83,7 @@ def logout():
     return redirect(url_for("login"))
 
 
-# -------------------------------------------------------------------
-# Dashboard & Filters
-# -------------------------------------------------------------------
+
 @app.route("/dashboard", methods=["GET","POST"])
 def dashboard():
     if not is_logged_in():
@@ -134,9 +130,7 @@ def dashboard():
     )
 
 
-# -------------------------------------------------------------------
-# Categories
-# -------------------------------------------------------------------
+
 @app.route("/categories", methods=["GET", "POST"])
 def manage_categories():
     if not is_logged_in():
@@ -170,9 +164,7 @@ def remove_category(category_id):
 
 
 
-# -------------------------------------------------------------------
-# Expense CRUD
-# -------------------------------------------------------------------
+
 @app.route("/expense/add", methods=["GET", "POST"])
 def expense_form():
     if not is_logged_in():
