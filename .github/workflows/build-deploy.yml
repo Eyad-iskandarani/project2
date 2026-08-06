@@ -1,0 +1,113 @@
+name: Build and Deploy Project 2
+
+on:
+  push:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+jobs:
+
+  # ==========================================
+  # SECTION 1: BUILD
+  # ==========================================
+  build:
+    name: Build Backend and Frontend
+    runs-on: self-hosted
+
+    steps:
+      - name: Download repository
+        uses: actions/checkout@v4
+
+      - name: Display runner information
+        run: |
+          echo "Runner name: $RUNNER_NAME"
+          echo "Runner operating system: $RUNNER_OS"
+          echo "Current directory:"
+          pwd
+
+      - name: Check project directories
+        run: |
+          test -d backend
+          test -d frontend
+
+          echo "Backend directory exists"
+          echo "Frontend directory exists"
+
+          echo "Backend files:"
+          ls -la backend
+
+          echo "Frontend files:"
+          ls -la frontend
+
+      - name: Check required backend files
+        run: |
+          test -f backend/server.py
+          test -f backend/requirements.txt
+          test -f backend/Dockerfile
+
+          echo "Required backend files exist"
+
+      - name: Check frontend files
+        run: |
+          test -d frontend/templates
+          test -d frontend/static
+
+          echo "Frontend templates directory exists"
+          echo "Frontend static directory exists"
+
+      - name: Check Python version
+        run: |
+          python3 --version
+
+      - name: Check Python syntax
+        run: |
+          python3 -m compileall backend
+
+      - name: Build completed
+        run: |
+          echo "Backend and frontend build checks completed successfully"
+
+
+  # ==========================================
+  # SECTION 2: DEPLOY
+  # ==========================================
+  deploy:
+    name: Deploy Application
+    runs-on: self-hosted
+
+    needs: build
+
+    steps:
+      - name: Download repository
+        uses: actions/checkout@v4
+
+      - name: Create deployment directory
+        run: |
+          mkdir -p /home/aau/project2-deployment
+
+      - name: Remove previous deployment files
+        run: |
+          rm -rf /home/aau/project2-deployment/backend
+          rm -rf /home/aau/project2-deployment/frontend
+
+      - name: Deploy backend and frontend
+        run: |
+          cp -r backend /home/aau/project2-deployment/
+          cp -r frontend /home/aau/project2-deployment/
+
+      - name: Verify deployment
+        run: |
+          echo "Deployment directory:"
+          ls -la /home/aau/project2-deployment
+
+          echo "Deployed backend:"
+          ls -la /home/aau/project2-deployment/backend
+
+          echo "Deployed frontend:"
+          ls -la /home/aau/project2-deployment/frontend
+
+      - name: Deployment completed
+        run: |
+          echo "Backend and frontend deployed successfully"
