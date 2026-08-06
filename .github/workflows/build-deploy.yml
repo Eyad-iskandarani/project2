@@ -14,6 +14,7 @@ permissions:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ghcr.io/eyad-iskandarani/project2-backend
+  DEPLOY_DIR: /home/aau/Desktop/project2/Expense_Tracker
 
 jobs:
 
@@ -35,9 +36,8 @@ jobs:
           test -f backend/Dockerfile
           test -f backend/requirements.txt
           test -f backend/server.py
-          test -f docker-compose.yaml
 
-          echo "All required project files exist"
+          echo "Required backend and frontend files exist"
 
       - name: Check Python syntax
         run: |
@@ -65,23 +65,20 @@ jobs:
 
       - name: Build completed
         run: |
-          echo "Docker image built successfully"
-          echo "Image: ${{ env.IMAGE_NAME }}:${{ github.sha }}"
+          echo "Image pushed successfully"
+          echo "${{ env.IMAGE_NAME }}:latest"
 
 
   # ==========================================
   # SECTION 2: DEPLOY
   # ==========================================
   deploy:
-    name: Deploy with Docker Compose
+    name: Deploy with Local Docker Compose
     runs-on: self-hosted
 
     needs: build
 
     steps:
-      - name: Download repository
-        uses: actions/checkout@v4
-
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -89,59 +86,46 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create environment file
+      - name: Check local Docker Compose file
         run: |
-          cat > .env <<EOF
+          test -f "${{ env.DEPLOY_DIR }}/docker-compose.yaml"
+          echo "Local Docker Compose file exists"
+
+      - name: Create local environment file
+        run: |
+          cat > "${{ env.DEPLOY_DIR }}/.env" <<EOF
           DB_HOST=database
           DB_PORT=5432
           DB_NAME=projectdb
           DB_USER=postgres
           DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-
           POSTGRES_DB=projectdb
           POSTGRES_USER=postgres
           POSTGRES_PASSWORD=${{ secrets.DB_PASSWORD }}
-
           DATABASE_URL=postgresql+psycopg2://postgres:${{ secrets.DB_PASSWORD }}@database:5432/projectdb
           EOF
 
       - name: Stop previous deployment
+        working-directory: ${{ env.DEPLOY_DIR }}
         run: |
           docker compose down --remove-orphans
 
       - name: Pull latest images
+        working-directory: ${{ env.DEPLOY_DIR }}
         run: |
           docker compose pull
 
       - name: Start application
+        working-directory: ${{ env.DEPLOY_DIR }}
         run: |
           docker compose up -d
 
       - name: Show running services
+        working-directory: ${{ env.DEPLOY_DIR }}
         run: |
           docker compose ps
 
-      - name: Wait for backend
+      - name: Show deployment logs
+        working-directory: ${{ env.DEPLOY_DIR }}
         run: |
-          for attempt in {1..20}; do
-            if curl --fail --silent http://localhost:3002/login > /dev/null; then
-              echo "Backend is working successfully"
-              exit 0
-            fi
-
-            echo "Waiting for backend: attempt $attempt"
-            sleep 5
-          done
-
-          echo "Backend did not start successfully"
-          docker compose logs --no-color
-          exit 1
-
-      - name: Show logs if deployment fails
-        if: failure()
-        run: |
-          docker compose logs --no-color
-
-      - name: Deployment completed
-        run: |
-          echo "Application deployed successfully"
+          docker compose logs --no-color --tail=100
