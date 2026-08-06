@@ -7,13 +7,23 @@ on:
 
   workflow_dispatch:
 
+# Allow the workflow to read the repository
+# and publish images to GitHub Container Registry.
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ghcr.io/eyad-iskandarani/project2-backend
+
 jobs:
 
   # ==========================================
   # SECTION 1: BUILD
   # ==========================================
   build:
-    name: Build Backend and Frontend
+    name: Build and Push Docker Image
     runs-on: self-hosted
 
     steps:
@@ -65,49 +75,81 @@ jobs:
         run: |
           python3 -m compileall backend
 
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push Docker image to GHCR
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: backend/Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:latest
+            ${{ env.IMAGE_NAME }}:${{ github.sha }}
+
       - name: Build completed
         run: |
-          echo "Backend and frontend build checks completed successfully"
+          echo "Docker image built successfully"
+          echo "Image pushed to:"
+          echo "${{ env.IMAGE_NAME }}:latest"
+          echo "${{ env.IMAGE_NAME }}:${{ github.sha }}"
 
 
   # ==========================================
   # SECTION 2: DEPLOY
   # ==========================================
   deploy:
-    name: Deploy Application
+    name: Deploy Docker Image
     runs-on: self-hosted
 
     needs: build
 
     steps:
-      - name: Download repository
-        uses: actions/checkout@v4
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create deployment directory
+      - name: Pull Docker image from GHCR
         run: |
-          mkdir -p /home/aau/project2-deployment
+          docker pull ${{ env.IMAGE_NAME }}:${{ github.sha }}
 
-      - name: Remove previous deployment files
+      - name: Stop previous backend container
         run: |
-          rm -rf /home/aau/project2-deployment/backend
-          rm -rf /home/aau/project2-deployment/frontend
+          docker stop project2-backend || true
+          docker rm project2-backend || true
 
-      - name: Deploy backend and frontend
+      - name: Deploy backend container
         run: |
-          cp -r backend /home/aau/project2-deployment/
-          cp -r frontend /home/aau/project2-deployment/
+          docker run -d \
+            --name project2-backend \
+            --restart unless-stopped \
+            -p 3002:3002 \
+            ${{ env.IMAGE_NAME }}:${{ github.sha }}
 
-      - name: Verify deployment
+      - name: Show running containers
         run: |
-          echo "Deployment directory:"
-          ls -la /home/aau/project2-deployment
+          docker ps
 
-          echo "Deployed backend:"
-          ls -la /home/aau/project2-deployment/backend
+      - name: Verify deployed container
+        run: |
+          sleep 5
+          docker ps --filter "name=project2-backend"
 
-          echo "Deployed frontend:"
-          ls -la /home/aau/project2-deployment/frontend
+      - name: Show backend logs
+        run: |
+          docker logs project2-backend
 
       - name: Deployment completed
         run: |
-          echo "Backend and frontend deployed successfully"
+          echo "Docker image deployed successfully"
